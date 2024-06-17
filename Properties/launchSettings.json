@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "budgetizer_dotnet": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7001",
+      "launchBrowser": false
+    }
+  }
+}
