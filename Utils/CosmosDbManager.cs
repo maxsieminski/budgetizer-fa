@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 
 using Microsoft.Azure.Cosmos;
@@ -60,8 +59,13 @@ namespace Budgetizer.Utils.Cosmos
                 throw new JsonException("Invalid item provided for parsing or entry not found.");
             }
 
-            CosmosEntry<T> updatedItem = MergeItems<T>(patchItem, currentItem.item);
-            return await container.ReplaceItemAsync(updatedItem, currentItem.id, new PartitionKey(currentItem.id));
+            T updatedItem = MergeItems<T>(patchItem, currentItem.item);
+            CosmosEntry<T> updatedDocument = new()
+            {
+                id = currentItem.id,
+                item = updatedItem
+            };
+            return await container.ReplaceItemAsync(updatedDocument, currentItem.id, new PartitionKey(currentItem.id));
         }
 
         public static async Task DeleteItem<T>(string containerName, string id)
@@ -76,27 +80,41 @@ namespace Budgetizer.Utils.Cosmos
             return JsonSerializer.Deserialize<T>(requestBody);
         }
 
-        private static CosmosEntry<T> MergeItems<T>(JsonDocument newItem, T currentItem)
+        private static T MergeItems<T>(JsonDocument newItem, T currentItem)
         {
-            Type currentValueType = currentItem.GetType();
-
-            foreach (var newProperty in newItem.RootElement.EnumerateObject())
+            if (newItem == null || currentItem == null)
             {
-                PropertyInfo? currentProperty = currentValueType.GetProperty(newProperty.Name);
-                if (currentProperty != null) 
-                {
-                    if (currentProperty.GetType() == typeof(object))
-                    {
-                        return MergeItems<T>()
-                    }
+                throw new ArgumentNullException();
+            }
+            var newItemElement = newItem.RootElement;
+            return RecursiveMerge(newItemElement, currentItem);
+        }
 
-                    if (currentProperty.CanWrite)
+        private static T RecursiveMerge<T>(JsonElement newItem, T currentItem)
+        {
+            var currentItemType = currentItem!.GetType();
+            var currentItemProperties = currentItemType.GetProperties();
+
+            foreach (var property in currentItemProperties)
+            {
+                if (newItem.TryGetProperty(property.Name, out JsonElement propertyElement))
+                {
+                    var propertyType = property.PropertyType;
+                    if (propertyType.IsClass && propertyType != typeof(string))
                     {
-                        object? value = JsonSerializer.Deserialize(newProperty.Value.GetRawText(), currentProperty.PropertyType);
-                        if (value != null)
+                        var nestedObject = property.GetValue(currentItem);
+                        if (nestedObject == null)
                         {
-                            currentProperty.SetValue(currentValue, value);
+                            nestedObject = Activator.CreateInstance(propertyType);
+                            property.SetValue(currentItem, nestedObject);
                         }
+                        var mergedNestedObject = RecursiveMerge(propertyElement, nestedObject);
+                        property.SetValue(currentItem, mergedNestedObject);
+                    }
+                    else
+                    {
+                        var value = JsonSerializer.Deserialize(propertyElement.GetRawText(), propertyType);
+                        property.SetValue(currentItem, value);
                     }
                 }
             }
