@@ -12,6 +12,22 @@ namespace Budgetizer.Utils.Models
         public required string producer { get; set; }
     }
 
+    public class Expense {
+        public required string name { get; set; }
+        public Shop? shop { get; set; }
+        public required string? shopId { get; set; } // cosmos field
+        public required decimal value { get; set; }
+        public required ExpenseProduct[] products { get; set; }
+        public required string timestamp { get; set; }
+    }
+
+    public class ExpenseProduct {
+        public Product? product { get; set; }
+        public string? productId { get; set; } // cosmos field
+        public required decimal value { get; set; }
+        public required int quantity { get; set; }
+    }
+
     public class Shop
     {
         public required string name { get; set; }
