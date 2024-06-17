@@ -1,0 +1,49 @@
+name: Build and deploy function app
+
+on:
+  push:
+    branches:
+      - release
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+
+      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 'Resolve Project Dependencies'
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          dotnet build --configuration Release --output ./output
+          popd
+      
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_4DF8F91C24374605BDD87E2EF29B6C8C }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_4869319E4D89486E9558B7922837450C }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_315C9A7F76E646A186F0F7A55610E221 }}
+
+      - name: 'Run Azure Functions Action'
+        uses: Azure/functions-action@v1
+        id: fa
+        with:
+          app-name: 'budgetizer-weu-api-fa'
+          slot-name: 'Production'
+          package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+          
