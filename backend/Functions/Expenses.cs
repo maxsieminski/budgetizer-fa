@@ -18,6 +18,16 @@ namespace Budgetizer.Functions
         public static async Task<IActionResult> GetAll([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "expenses")] HttpRequest req) 
         {
             CosmosEntry<Expense>[] expenses = await CosmosDbManager.GetAllItems<Expense>(containerName);
+
+            foreach (var expense in expenses)
+            {
+                if (expense.item.shopId != null)
+                {
+                    var expenseShop = await CosmosDbManager.GetItem<Shop>("shops", expense.item.shopId);
+                    expense.item.shop = expenseShop.item;
+                }
+            }
+
             return new OkObjectResult(expenses);
         }   
 
